@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import enum
+import itertools
 import re
 import typing
 
@@ -414,6 +415,41 @@ def test_union_type_with_default(union, avro_types, default) -> None:
     expected = {"name": name, "type": [*avro_types], "default": default}
 
     assert expected == field.to_dict()
+
+
+def test_union_type_deterministic_type_ordering() -> None:
+    """
+    Python does not guarantee the order of the types in a Union during separate executions, due to
+    type caching.
+
+    This test ensures that the order of the types in the union is deterministic regardless of the
+    incoming order so that the generated schema will remain consistent. See: #691
+    """
+    fields = [
+        AvroField("test", typing.Union[types])
+        for types in itertools.permutations([str, int, float])
+    ]
+
+    first_field = fields[0]
+    for other_field in fields[1:]:
+        assert first_field == other_field, "The order of the types were inconsistent with different Union orders"
+
+
+
+
+def test_union_type_deterministic_type_ordering_with_default() -> None:
+    """
+    Similar to the above test-case, we want to ensure the ordering is consistent with a default.
+    """
+    fields = [
+        # We arbitrarily chose the default to be a float type.
+        AvroField("test", typing.Union[types], default=0.1)
+        for types in itertools.permutations([str, int, float])
+    ]
+
+    first_field = fields[0]
+    for other_field in fields[1:]:
+        assert first_field == other_field, "The order of the types were inconsistent with different Union orders"
 
 
 @pytest.mark.parametrize("union, avro_types", consts.UNION_WITH_ARRAY)
